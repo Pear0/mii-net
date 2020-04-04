@@ -58,39 +58,49 @@ module mii_net_top(
     sevenSegmentDisp d7(ssegs[7], rcv_count[31:28]);
 
     reg [31:0] rcv_count;
+    reg [31:0] nibble_count;
     // assign o_ledg = rcv_count;
 
     reg last_rx_dv;
     always @(posedge enet_rx_clk) begin
         if (enet_rx_dv) begin
-            rcv_count <= {rcv_count[27:0], enet_rx_data};
+        if (!last_rx_dv) begin
+            nibble_count <= 1;
+            rcv_count <= enet_rx_data;
         end
+        else begin
+            nibble_count <= nibble_count + 1;
+            if (nibble_count < i_switches)
+                rcv_count <= {rcv_count[27:0], enet_rx_data};
+            end
+        end
+
         last_rx_dv <= enet_rx_dv;
     end
 
 
-    always @(posedge i_sys_clk) begin
-        if (i_reset) begin
-            clock_div <= clock_div_amt;
-            my_msg <= {msg_header, i_switches[15:0]};
-            msg_valid <= 65;
-        end
-        else if (clock_div != 0)
-            clock_div <= clock_div - 1;
-        else begin
-            clock_div <= clock_div_amt;
+    // always @(posedge i_sys_clk) begin
+    //     if (i_reset) begin
+    //         clock_div <= clock_div_amt;
+    //         my_msg <= {msg_header, i_switches[15:0]};
+    //         msg_valid <= 65;
+    //     end
+    //     else if (clock_div != 0)
+    //         clock_div <= clock_div - 1;
+    //     else begin
+    //         clock_div <= clock_div_amt;
 
-            if (mdc == 0) begin
-                mdc <= 1;
-                mdio_o <= my_msg[63];
-                my_msg <= my_msg << 1;
-                if (msg_valid > 0)
-                    msg_valid <= msg_valid - 1;
-            end
-            else 
-                mdc <= 0;
-        end
-    end
+    //         if (mdc == 0) begin
+    //             mdc <= 1;
+    //             mdio_o <= my_msg[63];
+    //             my_msg <= my_msg << 1;
+    //             if (msg_valid > 0)
+    //                 msg_valid <= msg_valid - 1;
+    //         end
+    //         else 
+    //             mdc <= 0;
+    //     end
+    // end
 
 
 endmodule : mii_net_top
