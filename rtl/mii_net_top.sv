@@ -54,15 +54,11 @@ module mii_net_top(
 
     reg [3:0] [7:0] frame_recv [256];
 
-    reg [3:0] neg_nibble;
     reg [3:0] stored_nibble;
     reg [31:0] nibble_count;
     reg last_rx_dv;
 
     wire [31:0] my_nibble = last_rx_dv ? nibble_count:0;
-
-    always @(negedge enet_rx_clk)
-        neg_nibble <= enet_rx_data;
 
     `define REV4(x) ({x[0],x[1],x[2],x[3]})
     // `define REV4(x) x
