@@ -71,17 +71,17 @@ module mii_net_top(
         if (enet_rx_dv && i_switches[17]) begin
             begin
                 if (my_nibble%2 == 0)
-                    stored_nibble <= `REV4(enet_rx_data); // {enet_rx_data, neg_nibble};
+                    stored_nibble <= enet_rx_data; // {enet_rx_data, neg_nibble};
                 else
                     if (my_nibble < 256*8) begin
                     if (my_nibble[2:1] == 0)
-                        frame_recv[my_nibble[31:3]] [3] <= {`REV4(enet_rx_data), stored_nibble};
+                        frame_recv[my_nibble[31:3]] [3] <= {enet_rx_data, stored_nibble};
                     if (my_nibble[2:1] == 1)
-                        frame_recv[my_nibble[31:3]] [2] <= {`REV4(enet_rx_data), stored_nibble};
+                        frame_recv[my_nibble[31:3]] [2] <= {enet_rx_data, stored_nibble};
                     if (my_nibble[2:1] == 2)
-                        frame_recv[my_nibble[31:3]] [1] <= {`REV4(enet_rx_data), stored_nibble};
+                        frame_recv[my_nibble[31:3]] [1] <= {enet_rx_data, stored_nibble};
                     if (my_nibble[2:1] == 3)
-                        frame_recv[my_nibble[31:3]] [0] <= {`REV4(enet_rx_data), stored_nibble};
+                        frame_recv[my_nibble[31:3]] [0] <= {enet_rx_data, stored_nibble};
                 end
                 nibble_count <= my_nibble+1;
             end

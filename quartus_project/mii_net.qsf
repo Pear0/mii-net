@@ -161,10 +161,10 @@ set_location_assignment PIN_Y16 -to dbg_data[1]
 set_location_assignment PIN_AE16 -to dbg_data[2]
 set_location_assignment PIN_AE15 -to dbg_data[3]
 set_location_assignment PIN_AF16 -to dbg_valid
-set_location_assignment PIN_C16 -to enet_rx_data[3]
-set_location_assignment PIN_D16 -to enet_rx_data[2]
-set_location_assignment PIN_D17 -to enet_rx_data[1]
-set_location_assignment PIN_C15 -to enet_rx_data[0]
+set_location_assignment PIN_C15 -to enet_rx_data[3]
+set_location_assignment PIN_D17 -to enet_rx_data[2]
+set_location_assignment PIN_D16 -to enet_rx_data[1]
+set_location_assignment PIN_C16 -to enet_rx_data[0]
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_management.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sevenSegmentDisp.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_net_top.sv
