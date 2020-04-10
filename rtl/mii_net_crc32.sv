@@ -19,87 +19,317 @@ module mii_net_crc32(
     i_clk,
     i_reset,
 
-    i_d,
+    d,
     i_d_valid,
     i_calc,
     i_init,
 
-    o_crc_reg, 
+    o_crc_reg,
     o_crc,
 );
 
-output reg [31:0] o_crc_reg;
-output reg [7:0]  o_crc;
+    output reg [31:0] o_crc_reg;
+    output reg [7:0] o_crc;
 
-input  wire [7:0]  d;
-input  wire        i_calc;
-input  wire    i_init;
-input  wire   i_d_valid;
-input  wire   i_clk;
-input  wire   i_reset;
+    input wire [7:0] d;
+    input wire i_calc;
+    input wire i_init;
+    input wire i_d_valid;
+    input wire i_clk;
+    input wire i_reset;
 
-wire   [31:0] next_crc;
+    wire [31:0] next_crc;
+    assign next_crc = crc32_lookup(o_crc_reg[7:0] ^ d) ^ (o_crc_reg >> 8);
 
- 
-always @ (posedge i_clk)
-begin
+    always @(posedge i_clk)
+        begin
 // 802.3 initial value 0xFF.....
-   if (i_reset || i_init) begin
-      o_crc_reg <= 32'hFFFFFFFF;
-      o_crc     <= 8'hFF;
-   end
+            if (i_reset || i_init) begin
+                o_crc_reg <= 32'hFFFFFFFF;
+                o_crc <= 8'hFF;
+            end
 
-   else if (i_calc && i_d_valid) begin
-        // Calculated next CRC
-      o_crc_reg <= next_crc;
-      // Thanks 802.3 I love this reversed order :) Works well with serial CRC
-      // but I am on MAC layer.
-      o_crc     <= ~{next_crc[24], next_crc[25], next_crc[26], next_crc[27],
-                   next_crc[28], next_crc[29], next_crc[30], next_crc[31]};
-   end
-   
-   else if (~i_calc & i_d_valid) begin
-        // Just assert d_valid without calc you can slowly get all the values (over 4 cycles)
-        o_crc_reg <=  {crc_reg[23:0], 8'hFF};
-        // Reversed shifted most siginificant (match the o_crc_reg above)
-        o_crc     <= ~{o_crc_reg[16], o_crc_reg[17], o_crc_reg[18], o_crc_reg[19],
-                    o_crc_reg[20], o_crc_reg[21], o_crc_reg[22], o_crc_reg[23]};
-   end
-end
+            else if (i_calc && i_d_valid) begin
+                // Calculated next CRC
 
-// modular 1 long divison (CRC Edition)
+                //  table[(crc ^ msg[i]) & 0xff] ^ (crc >> 8)
+                o_crc_reg <= next_crc;
+                // Thanks 802.3 I love this reversed order :) Works well with serial CRC
+                // but I am on MAC layer.
+                o_crc <= ~next_crc[7:0];
+            end
+            else if (~i_calc & i_d_valid) begin
+                // Just assert d_valid without calc you can slowly get all the values (over 4 cycles)
+                o_crc_reg <= {8'hFF, o_crc_reg[31:8]};
+                // Reversed shifted most siginificant (match the o_crc_reg above)
+                o_crc <= ~o_crc_reg[7:0];
+            end
+        end
 
-assign next_crc[0] = o_crc_reg[30] ^ d[1] ^ o_crc_reg[24] ^ d[7];
-assign next_crc[1] = d[6] ^ d[7] ^ d[0] ^ o_crc_reg[30] ^ o_crc_reg[31] ^ d[1] ^ o_crc_reg[24] ^ o_crc_reg[25];
-assign next_crc[2] = o_crc_reg[26] ^ d[5] ^ d[6] ^ d[7] ^ o_crc_reg[30] ^ d[0] ^ d[1] ^ o_crc_reg[31] ^ o_crc_reg[24] ^ o_crc_reg[25];
-assign next_crc[3] = d[4] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27] ^ d[6] ^ d[0] ^ o_crc_reg[31] ^ o_crc_reg[25];
-assign next_crc[4] = d[4] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[30] ^ d[1] ^ o_crc_reg[24] ^ d[3];
-assign next_crc[5] = d[4] ^ o_crc_reg[27] ^ d[6] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[29] ^ o_crc_reg[30] ^ d[0] ^ d[1] ^ o_crc_reg[31] ^ d[2] ^ o_crc_reg[24] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[6] = o_crc_reg[26] ^ d[5] ^ d[6] ^ o_crc_reg[28] ^ o_crc_reg[29] ^ d[0] ^ o_crc_reg[30] ^ o_crc_reg[31] ^ d[1] ^ d[2] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[7] = d[4] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27] ^ d[7] ^ o_crc_reg[29] ^ d[0] ^ o_crc_reg[31] ^ d[2] ^ o_crc_reg[24];
-assign next_crc[8] = d[4] ^ o_crc_reg[27] ^ d[6] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[24] ^ o_crc_reg[0] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[9] = o_crc_reg[26] ^ d[5] ^ d[6] ^ o_crc_reg[28] ^ o_crc_reg[29] ^ d[2] ^ d[3] ^ o_crc_reg[25] ^ o_crc_reg[1];
-assign next_crc[10] = d[4] ^ o_crc_reg[26] ^ o_crc_reg[2] ^ d[5] ^ o_crc_reg[27] ^ d[7] ^ o_crc_reg[29] ^ d[2] ^ o_crc_reg[24];
-assign next_crc[11] = d[4] ^ o_crc_reg[27] ^ d[6] ^ o_crc_reg[3] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[24] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[12] = o_crc_reg[26] ^ d[5] ^ d[6] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[4] ^ o_crc_reg[29] ^ o_crc_reg[30] ^ d[1] ^ d[2] ^ o_crc_reg[24] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[13] = d[4] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27] ^ d[6] ^ o_crc_reg[29] ^ d[0] ^ o_crc_reg[30] ^ o_crc_reg[5] ^ o_crc_reg[31] ^ d[1] ^ d[2] ^ o_crc_reg[25];
-assign next_crc[14] = d[4] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27] ^ o_crc_reg[28] ^ o_crc_reg[30] ^ d[0] ^ d[1] ^ o_crc_reg[31] ^ o_crc_reg[6] ^ d[3];
-assign next_crc[15] = d[4] ^ o_crc_reg[27] ^ o_crc_reg[28] ^ o_crc_reg[29] ^ d[0] ^ o_crc_reg[31] ^ d[2] ^ o_crc_reg[7] ^ d[3];
-assign next_crc[16] = o_crc_reg[28] ^ d[7] ^ o_crc_reg[29] ^ d[2] ^ o_crc_reg[24] ^ d[3] ^ o_crc_reg[8];
-assign next_crc[17] = o_crc_reg[9] ^ d[6] ^ o_crc_reg[29] ^ o_crc_reg[30] ^ d[1] ^ d[2] ^ o_crc_reg[25];
-assign next_crc[18] = o_crc_reg[26] ^ d[5] ^ o_crc_reg[10] ^ o_crc_reg[30] ^ d[0] ^ d[1] ^ o_crc_reg[31];
-assign next_crc[19] = d[4] ^ o_crc_reg[27] ^ o_crc_reg[11] ^ d[0] ^ o_crc_reg[31];
-assign next_crc[20] = o_crc_reg[28] ^ o_crc_reg[12] ^ d[3];
-assign next_crc[21] = o_crc_reg[29] ^ o_crc_reg[13] ^ d[2];
-assign next_crc[22] = d[7] ^ o_crc_reg[14] ^ o_crc_reg[24];
-assign next_crc[23] = d[6] ^ d[7] ^ o_crc_reg[30] ^ d[1] ^ o_crc_reg[15] ^ o_crc_reg[24] ^ o_crc_reg[25];
-assign next_crc[24] = o_crc_reg[26] ^ d[5] ^ d[6] ^ d[0] ^ o_crc_reg[31] ^ o_crc_reg[16] ^ o_crc_reg[25];
-assign next_crc[25] = d[4] ^ o_crc_reg[17] ^ o_crc_reg[26] ^ d[5] ^ o_crc_reg[27];
-assign next_crc[26] = d[4] ^ o_crc_reg[18] ^ o_crc_reg[27] ^ o_crc_reg[28] ^ d[7] ^ o_crc_reg[30] ^ d[1] ^ o_crc_reg[24] ^ d[3];
-assign next_crc[27] = d[6] ^ o_crc_reg[19] ^ o_crc_reg[28] ^ o_crc_reg[29] ^ d[0] ^ o_crc_reg[31] ^ d[2] ^ d[3] ^ o_crc_reg[25];
-assign next_crc[28] = o_crc_reg[26] ^ d[5] ^ o_crc_reg[20] ^ o_crc_reg[29] ^ o_crc_reg[30] ^ d[1] ^ d[2];
-assign next_crc[29] = d[4] ^ o_crc_reg[27] ^ o_crc_reg[21] ^ o_crc_reg[30] ^ d[0] ^ d[1] ^ o_crc_reg[31];
-assign next_crc[30] = o_crc_reg[28] ^ d[0] ^ o_crc_reg[22] ^ o_crc_reg[31] ^ d[3];
-assign next_crc[31] = o_crc_reg[29] ^ o_crc_reg[23] ^ d[2];
-endmodule
+    function [31:0] crc32_lookup;
+        input [7:0] num;
+        begin
+            case (num)
+                8'h0: crc32_lookup = 32'h0;
+                8'h1: crc32_lookup = 32'h77073096;
+                8'h2: crc32_lookup = 32'hee0e612c;
+                8'h3: crc32_lookup = 32'h990951ba;
+                8'h4: crc32_lookup = 32'h76dc419;
+                8'h5: crc32_lookup = 32'h706af48f;
+                8'h6: crc32_lookup = 32'he963a535;
+                8'h7: crc32_lookup = 32'h9e6495a3;
+                8'h8: crc32_lookup = 32'hedb8832;
+                8'h9: crc32_lookup = 32'h79dcb8a4;
+                8'ha: crc32_lookup = 32'he0d5e91e;
+                8'hb: crc32_lookup = 32'h97d2d988;
+                8'hc: crc32_lookup = 32'h9b64c2b;
+                8'hd: crc32_lookup = 32'h7eb17cbd;
+                8'he: crc32_lookup = 32'he7b82d07;
+                8'hf: crc32_lookup = 32'h90bf1d91;
+                8'h10: crc32_lookup = 32'h1db71064;
+                8'h11: crc32_lookup = 32'h6ab020f2;
+                8'h12: crc32_lookup = 32'hf3b97148;
+                8'h13: crc32_lookup = 32'h84be41de;
+                8'h14: crc32_lookup = 32'h1adad47d;
+                8'h15: crc32_lookup = 32'h6ddde4eb;
+                8'h16: crc32_lookup = 32'hf4d4b551;
+                8'h17: crc32_lookup = 32'h83d385c7;
+                8'h18: crc32_lookup = 32'h136c9856;
+                8'h19: crc32_lookup = 32'h646ba8c0;
+                8'h1a: crc32_lookup = 32'hfd62f97a;
+                8'h1b: crc32_lookup = 32'h8a65c9ec;
+                8'h1c: crc32_lookup = 32'h14015c4f;
+                8'h1d: crc32_lookup = 32'h63066cd9;
+                8'h1e: crc32_lookup = 32'hfa0f3d63;
+                8'h1f: crc32_lookup = 32'h8d080df5;
+                8'h20: crc32_lookup = 32'h3b6e20c8;
+                8'h21: crc32_lookup = 32'h4c69105e;
+                8'h22: crc32_lookup = 32'hd56041e4;
+                8'h23: crc32_lookup = 32'ha2677172;
+                8'h24: crc32_lookup = 32'h3c03e4d1;
+                8'h25: crc32_lookup = 32'h4b04d447;
+                8'h26: crc32_lookup = 32'hd20d85fd;
+                8'h27: crc32_lookup = 32'ha50ab56b;
+                8'h28: crc32_lookup = 32'h35b5a8fa;
+                8'h29: crc32_lookup = 32'h42b2986c;
+                8'h2a: crc32_lookup = 32'hdbbbc9d6;
+                8'h2b: crc32_lookup = 32'hacbcf940;
+                8'h2c: crc32_lookup = 32'h32d86ce3;
+                8'h2d: crc32_lookup = 32'h45df5c75;
+                8'h2e: crc32_lookup = 32'hdcd60dcf;
+                8'h2f: crc32_lookup = 32'habd13d59;
+                8'h30: crc32_lookup = 32'h26d930ac;
+                8'h31: crc32_lookup = 32'h51de003a;
+                8'h32: crc32_lookup = 32'hc8d75180;
+                8'h33: crc32_lookup = 32'hbfd06116;
+                8'h34: crc32_lookup = 32'h21b4f4b5;
+                8'h35: crc32_lookup = 32'h56b3c423;
+                8'h36: crc32_lookup = 32'hcfba9599;
+                8'h37: crc32_lookup = 32'hb8bda50f;
+                8'h38: crc32_lookup = 32'h2802b89e;
+                8'h39: crc32_lookup = 32'h5f058808;
+                8'h3a: crc32_lookup = 32'hc60cd9b2;
+                8'h3b: crc32_lookup = 32'hb10be924;
+                8'h3c: crc32_lookup = 32'h2f6f7c87;
+                8'h3d: crc32_lookup = 32'h58684c11;
+                8'h3e: crc32_lookup = 32'hc1611dab;
+                8'h3f: crc32_lookup = 32'hb6662d3d;
+                8'h40: crc32_lookup = 32'h76dc4190;
+                8'h41: crc32_lookup = 32'h1db7106;
+                8'h42: crc32_lookup = 32'h98d220bc;
+                8'h43: crc32_lookup = 32'hefd5102a;
+                8'h44: crc32_lookup = 32'h71b18589;
+                8'h45: crc32_lookup = 32'h6b6b51f;
+                8'h46: crc32_lookup = 32'h9fbfe4a5;
+                8'h47: crc32_lookup = 32'he8b8d433;
+                8'h48: crc32_lookup = 32'h7807c9a2;
+                8'h49: crc32_lookup = 32'hf00f934;
+                8'h4a: crc32_lookup = 32'h9609a88e;
+                8'h4b: crc32_lookup = 32'he10e9818;
+                8'h4c: crc32_lookup = 32'h7f6a0dbb;
+                8'h4d: crc32_lookup = 32'h86d3d2d;
+                8'h4e: crc32_lookup = 32'h91646c97;
+                8'h4f: crc32_lookup = 32'he6635c01;
+                8'h50: crc32_lookup = 32'h6b6b51f4;
+                8'h51: crc32_lookup = 32'h1c6c6162;
+                8'h52: crc32_lookup = 32'h856530d8;
+                8'h53: crc32_lookup = 32'hf262004e;
+                8'h54: crc32_lookup = 32'h6c0695ed;
+                8'h55: crc32_lookup = 32'h1b01a57b;
+                8'h56: crc32_lookup = 32'h8208f4c1;
+                8'h57: crc32_lookup = 32'hf50fc457;
+                8'h58: crc32_lookup = 32'h65b0d9c6;
+                8'h59: crc32_lookup = 32'h12b7e950;
+                8'h5a: crc32_lookup = 32'h8bbeb8ea;
+                8'h5b: crc32_lookup = 32'hfcb9887c;
+                8'h5c: crc32_lookup = 32'h62dd1ddf;
+                8'h5d: crc32_lookup = 32'h15da2d49;
+                8'h5e: crc32_lookup = 32'h8cd37cf3;
+                8'h5f: crc32_lookup = 32'hfbd44c65;
+                8'h60: crc32_lookup = 32'h4db26158;
+                8'h61: crc32_lookup = 32'h3ab551ce;
+                8'h62: crc32_lookup = 32'ha3bc0074;
+                8'h63: crc32_lookup = 32'hd4bb30e2;
+                8'h64: crc32_lookup = 32'h4adfa541;
+                8'h65: crc32_lookup = 32'h3dd895d7;
+                8'h66: crc32_lookup = 32'ha4d1c46d;
+                8'h67: crc32_lookup = 32'hd3d6f4fb;
+                8'h68: crc32_lookup = 32'h4369e96a;
+                8'h69: crc32_lookup = 32'h346ed9fc;
+                8'h6a: crc32_lookup = 32'had678846;
+                8'h6b: crc32_lookup = 32'hda60b8d0;
+                8'h6c: crc32_lookup = 32'h44042d73;
+                8'h6d: crc32_lookup = 32'h33031de5;
+                8'h6e: crc32_lookup = 32'haa0a4c5f;
+                8'h6f: crc32_lookup = 32'hdd0d7cc9;
+                8'h70: crc32_lookup = 32'h5005713c;
+                8'h71: crc32_lookup = 32'h270241aa;
+                8'h72: crc32_lookup = 32'hbe0b1010;
+                8'h73: crc32_lookup = 32'hc90c2086;
+                8'h74: crc32_lookup = 32'h5768b525;
+                8'h75: crc32_lookup = 32'h206f85b3;
+                8'h76: crc32_lookup = 32'hb966d409;
+                8'h77: crc32_lookup = 32'hce61e49f;
+                8'h78: crc32_lookup = 32'h5edef90e;
+                8'h79: crc32_lookup = 32'h29d9c998;
+                8'h7a: crc32_lookup = 32'hb0d09822;
+                8'h7b: crc32_lookup = 32'hc7d7a8b4;
+                8'h7c: crc32_lookup = 32'h59b33d17;
+                8'h7d: crc32_lookup = 32'h2eb40d81;
+                8'h7e: crc32_lookup = 32'hb7bd5c3b;
+                8'h7f: crc32_lookup = 32'hc0ba6cad;
+                8'h80: crc32_lookup = 32'hedb88320;
+                8'h81: crc32_lookup = 32'h9abfb3b6;
+                8'h82: crc32_lookup = 32'h3b6e20c;
+                8'h83: crc32_lookup = 32'h74b1d29a;
+                8'h84: crc32_lookup = 32'head54739;
+                8'h85: crc32_lookup = 32'h9dd277af;
+                8'h86: crc32_lookup = 32'h4db2615;
+                8'h87: crc32_lookup = 32'h73dc1683;
+                8'h88: crc32_lookup = 32'he3630b12;
+                8'h89: crc32_lookup = 32'h94643b84;
+                8'h8a: crc32_lookup = 32'hd6d6a3e;
+                8'h8b: crc32_lookup = 32'h7a6a5aa8;
+                8'h8c: crc32_lookup = 32'he40ecf0b;
+                8'h8d: crc32_lookup = 32'h9309ff9d;
+                8'h8e: crc32_lookup = 32'ha00ae27;
+                8'h8f: crc32_lookup = 32'h7d079eb1;
+                8'h90: crc32_lookup = 32'hf00f9344;
+                8'h91: crc32_lookup = 32'h8708a3d2;
+                8'h92: crc32_lookup = 32'h1e01f268;
+                8'h93: crc32_lookup = 32'h6906c2fe;
+                8'h94: crc32_lookup = 32'hf762575d;
+                8'h95: crc32_lookup = 32'h806567cb;
+                8'h96: crc32_lookup = 32'h196c3671;
+                8'h97: crc32_lookup = 32'h6e6b06e7;
+                8'h98: crc32_lookup = 32'hfed41b76;
+                8'h99: crc32_lookup = 32'h89d32be0;
+                8'h9a: crc32_lookup = 32'h10da7a5a;
+                8'h9b: crc32_lookup = 32'h67dd4acc;
+                8'h9c: crc32_lookup = 32'hf9b9df6f;
+                8'h9d: crc32_lookup = 32'h8ebeeff9;
+                8'h9e: crc32_lookup = 32'h17b7be43;
+                8'h9f: crc32_lookup = 32'h60b08ed5;
+                8'ha0: crc32_lookup = 32'hd6d6a3e8;
+                8'ha1: crc32_lookup = 32'ha1d1937e;
+                8'ha2: crc32_lookup = 32'h38d8c2c4;
+                8'ha3: crc32_lookup = 32'h4fdff252;
+                8'ha4: crc32_lookup = 32'hd1bb67f1;
+                8'ha5: crc32_lookup = 32'ha6bc5767;
+                8'ha6: crc32_lookup = 32'h3fb506dd;
+                8'ha7: crc32_lookup = 32'h48b2364b;
+                8'ha8: crc32_lookup = 32'hd80d2bda;
+                8'ha9: crc32_lookup = 32'haf0a1b4c;
+                8'haa: crc32_lookup = 32'h36034af6;
+                8'hab: crc32_lookup = 32'h41047a60;
+                8'hac: crc32_lookup = 32'hdf60efc3;
+                8'had: crc32_lookup = 32'ha867df55;
+                8'hae: crc32_lookup = 32'h316e8eef;
+                8'haf: crc32_lookup = 32'h4669be79;
+                8'hb0: crc32_lookup = 32'hcb61b38c;
+                8'hb1: crc32_lookup = 32'hbc66831a;
+                8'hb2: crc32_lookup = 32'h256fd2a0;
+                8'hb3: crc32_lookup = 32'h5268e236;
+                8'hb4: crc32_lookup = 32'hcc0c7795;
+                8'hb5: crc32_lookup = 32'hbb0b4703;
+                8'hb6: crc32_lookup = 32'h220216b9;
+                8'hb7: crc32_lookup = 32'h5505262f;
+                8'hb8: crc32_lookup = 32'hc5ba3bbe;
+                8'hb9: crc32_lookup = 32'hb2bd0b28;
+                8'hba: crc32_lookup = 32'h2bb45a92;
+                8'hbb: crc32_lookup = 32'h5cb36a04;
+                8'hbc: crc32_lookup = 32'hc2d7ffa7;
+                8'hbd: crc32_lookup = 32'hb5d0cf31;
+                8'hbe: crc32_lookup = 32'h2cd99e8b;
+                8'hbf: crc32_lookup = 32'h5bdeae1d;
+                8'hc0: crc32_lookup = 32'h9b64c2b0;
+                8'hc1: crc32_lookup = 32'hec63f226;
+                8'hc2: crc32_lookup = 32'h756aa39c;
+                8'hc3: crc32_lookup = 32'h26d930a;
+                8'hc4: crc32_lookup = 32'h9c0906a9;
+                8'hc5: crc32_lookup = 32'heb0e363f;
+                8'hc6: crc32_lookup = 32'h72076785;
+                8'hc7: crc32_lookup = 32'h5005713;
+                8'hc8: crc32_lookup = 32'h95bf4a82;
+                8'hc9: crc32_lookup = 32'he2b87a14;
+                8'hca: crc32_lookup = 32'h7bb12bae;
+                8'hcb: crc32_lookup = 32'hcb61b38;
+                8'hcc: crc32_lookup = 32'h92d28e9b;
+                8'hcd: crc32_lookup = 32'he5d5be0d;
+                8'hce: crc32_lookup = 32'h7cdcefb7;
+                8'hcf: crc32_lookup = 32'hbdbdf21;
+                8'hd0: crc32_lookup = 32'h86d3d2d4;
+                8'hd1: crc32_lookup = 32'hf1d4e242;
+                8'hd2: crc32_lookup = 32'h68ddb3f8;
+                8'hd3: crc32_lookup = 32'h1fda836e;
+                8'hd4: crc32_lookup = 32'h81be16cd;
+                8'hd5: crc32_lookup = 32'hf6b9265b;
+                8'hd6: crc32_lookup = 32'h6fb077e1;
+                8'hd7: crc32_lookup = 32'h18b74777;
+                8'hd8: crc32_lookup = 32'h88085ae6;
+                8'hd9: crc32_lookup = 32'hff0f6a70;
+                8'hda: crc32_lookup = 32'h66063bca;
+                8'hdb: crc32_lookup = 32'h11010b5c;
+                8'hdc: crc32_lookup = 32'h8f659eff;
+                8'hdd: crc32_lookup = 32'hf862ae69;
+                8'hde: crc32_lookup = 32'h616bffd3;
+                8'hdf: crc32_lookup = 32'h166ccf45;
+                8'he0: crc32_lookup = 32'ha00ae278;
+                8'he1: crc32_lookup = 32'hd70dd2ee;
+                8'he2: crc32_lookup = 32'h4e048354;
+                8'he3: crc32_lookup = 32'h3903b3c2;
+                8'he4: crc32_lookup = 32'ha7672661;
+                8'he5: crc32_lookup = 32'hd06016f7;
+                8'he6: crc32_lookup = 32'h4969474d;
+                8'he7: crc32_lookup = 32'h3e6e77db;
+                8'he8: crc32_lookup = 32'haed16a4a;
+                8'he9: crc32_lookup = 32'hd9d65adc;
+                8'hea: crc32_lookup = 32'h40df0b66;
+                8'heb: crc32_lookup = 32'h37d83bf0;
+                8'hec: crc32_lookup = 32'ha9bcae53;
+                8'hed: crc32_lookup = 32'hdebb9ec5;
+                8'hee: crc32_lookup = 32'h47b2cf7f;
+                8'hef: crc32_lookup = 32'h30b5ffe9;
+                8'hf0: crc32_lookup = 32'hbdbdf21c;
+                8'hf1: crc32_lookup = 32'hcabac28a;
+                8'hf2: crc32_lookup = 32'h53b39330;
+                8'hf3: crc32_lookup = 32'h24b4a3a6;
+                8'hf4: crc32_lookup = 32'hbad03605;
+                8'hf5: crc32_lookup = 32'hcdd70693;
+                8'hf6: crc32_lookup = 32'h54de5729;
+                8'hf7: crc32_lookup = 32'h23d967bf;
+                8'hf8: crc32_lookup = 32'hb3667a2e;
+                8'hf9: crc32_lookup = 32'hc4614ab8;
+                8'hfa: crc32_lookup = 32'h5d681b02;
+                8'hfb: crc32_lookup = 32'h2a6f2b94;
+                8'hfc: crc32_lookup = 32'hb40bbe37;
+                8'hfd: crc32_lookup = 32'hc30c8ea1;
+                8'hfe: crc32_lookup = 32'h5a05df1b;
+                8'hff: crc32_lookup = 32'h2d02ef8d;
+            endcase
+        end
+    endfunction
+
+
+endmodule: mii_net_crc32
 
