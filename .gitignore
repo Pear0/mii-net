@@ -1,4 +1,5 @@
 .idea
 *.vcd
 *.out
-
+.DS_Store
+*.bak
