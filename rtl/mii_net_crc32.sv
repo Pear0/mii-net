@@ -41,28 +41,45 @@ module mii_net_crc32(
     wire [31:0] next_crc;
     assign next_crc = crc32_lookup(o_crc_reg[7:0] ^ d) ^ (o_crc_reg >> 8);
 
+    assign o_crc = ~o_crc_reg[7:0];
+
+
+
+
+    reg do_calc;
+    reg [31:0] do_crc_val;
+    reg [31:0] do_shifted;
+
+
     always @(posedge i_clk)
         begin
 // 802.3 initial value 0xFF.....
             if (i_reset || i_init) begin
                 o_crc_reg <= 32'hFFFFFFFF;
-                o_crc <= 8'hFF;
             end
+            else begin
+                if (do_calc) begin
 
-            else if (i_calc && i_d_valid) begin
-                // Calculated next CRC
+                end
 
-                //  table[(crc ^ msg[i]) & 0xff] ^ (crc >> 8)
-                o_crc_reg <= next_crc;
-                // Thanks 802.3 I love this reversed order :) Works well with serial CRC
-                // but I am on MAC layer.
-                o_crc <= ~next_crc[7:0];
-            end
-            else if (~i_calc & i_d_valid) begin
-                // Just assert d_valid without calc you can slowly get all the values (over 4 cycles)
-                o_crc_reg <= {8'hFF, o_crc_reg[31:8]};
-                // Reversed shifted most siginificant (match the o_crc_reg above)
-                o_crc <= ~o_crc_reg[7:0];
+                if (i_calc && i_d_valid) begin
+                    // Calculated next CRC
+
+                    do_crc_val <= crc32_lookup(o_crc_reg[7:0] ^ d);
+                    do_shifted <= (o_crc_reg >> 8);
+                    do_calc <= 1;
+
+
+                    //  table[(crc ^ msg[i]) & 0xff] ^ (crc >> 8)
+                    o_crc_reg <= next_crc;
+                    // Thanks 802.3 I love this reversed order :) Works well with serial CRC
+                    // but I am on MAC layer.
+                end
+                else if (~i_calc & i_d_valid) begin
+                    // Just assert d_valid without calc you can slowly get all the values (over 4 cycles)
+                    o_crc_reg <= {8'hFF, o_crc_reg[31:8]};
+                    // Reversed shifted most siginificant (match the o_crc_reg above)
+                end
             end
         end
 

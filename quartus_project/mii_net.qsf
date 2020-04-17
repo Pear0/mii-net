@@ -165,10 +165,6 @@ set_location_assignment PIN_C15 -to enet_rx_data[3]
 set_location_assignment PIN_D17 -to enet_rx_data[2]
 set_location_assignment PIN_D16 -to enet_rx_data[1]
 set_location_assignment PIN_C16 -to enet_rx_data[0]
-set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_management.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sevenSegmentDisp.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_net_top.sv
-set_global_assignment -name SDC_FILE mii_net.sdc
 set_location_assignment PIN_B17 -to enet_tx_clk
 set_location_assignment PIN_A18 -to enet_tx_en
 set_location_assignment PIN_C18 -to enet_tx_data[0]
@@ -177,4 +173,10 @@ set_location_assignment PIN_A19 -to enet_tx_data[2]
 set_location_assignment PIN_B19 -to enet_tx_data[3]
 set_location_assignment PIN_R24 -to i_nsend
 set_location_assignment PIN_B18 -to enet_tx_er
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_net_crc32.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_phy_encoder.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_management.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/sevenSegmentDisp.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../rtl/mii_net_top.sv
+set_global_assignment -name SDC_FILE mii_net.sdc
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

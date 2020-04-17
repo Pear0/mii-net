@@ -16,6 +16,8 @@ module mii_phy_encoder(
     localparam MTU = 1518;
     localparam MIN_FRAME_SIZE = 60; // not including FCS
 
+    assign enet_tx_er = 0;
+
     reg [7:0] the_buffer[MTU];
     reg [11:0] buffer_len;
     reg [11:0] sender_idx;
