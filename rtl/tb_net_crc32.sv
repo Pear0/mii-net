@@ -14,6 +14,8 @@ module tb_net_crc32();
 
 
     initial begin
+        i_calc = 0;
+        i_d_valid = 0;
         i_sys_clk = 1;
         #1;
         i_sys_clk = 0;
