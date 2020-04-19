@@ -94,9 +94,15 @@ module mii_net_top(
         last_rx_dv <= enet_rx_dv;
     end
 
+// `define INSPECT 1
+
+`ifdef INSPECT
     always @(posedge i_sys_clk) begin
         seg_display <= frame_recv[i_switches[7:0]];
     end
+`else
+    assign seg_display = buffer_len;
+`endif
 
     reg [20:0] current_md;
     reg [4:0] md_index;
@@ -174,10 +180,15 @@ module mii_net_top(
     reg is_sending;
     reg [15:0] send_idx;
 
+    assign o_ledg[0] = i_nsend;
+    assign o_ledg[1] = is_sending;
+    assign o_ledg[2] = tx_ready;
+    assign o_ledg[7:3] = send_idx[4:0];
+
     always @(posedge i_sys_clk) begin
         if (~i_nreset) begin
             tx_en <= 0;
-            tx_data <= 0;
+//            tx_data <= 0;
             is_sending <= 0;
             send_idx <= 0;
         end
@@ -188,12 +199,16 @@ module mii_net_top(
             end
             if (is_sending) begin // next cycle
 
-                if (send_idx == buffer_len) begin
+                if (send_idx >= buffer_len - 4) begin
                     is_sending <= 0;
                     tx_en <= 0;
                 end
                 else begin
+`ifndef INSPECT
                     tx_data <= frame_recv[send_idx[15:2]][3-send_idx[1:0]];
+`else
+                    tx_data <= 0;
+`endif
                     tx_en <= 1;
 
                     send_idx <= send_idx + 1;
