@@ -1,3 +1,4 @@
+`default_nettype none
 module mii_net_top(
     input i_sys_clk,
     input i_nreset,
@@ -190,7 +191,7 @@ module mii_net_top(
 
 
     reg [10:0] recv_addr;
-    wire [31:0] recv_word = frame_recv[recv_addr];
+    wire [31:0] recv_word = frame_recv[recv_addr][3:0];
 
     assign clear_new_packet = p_state == P_FINISH;
 
@@ -233,7 +234,10 @@ module mii_net_top(
 
     reg [7:0] to_write_byte;
 
+    reg [31:0] recv_word2;
+
     always @(posedge i_sys_clk) begin
+        recv_word2 <= recv_word;
         if (~i_nreset) begin
             p_state <= P_IDLE;
             pending_len <= 0;
