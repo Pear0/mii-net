@@ -10,7 +10,9 @@ module mii_phy_encoder(
 
     input tx_en,
     input [7:0] tx_data,
-    output reg tx_ready
+    output reg tx_ready,
+
+    output [7:0] dbg_states
 );
 
     localparam MTU = 1518;
@@ -41,6 +43,8 @@ module mii_phy_encoder(
     localparam SS_RESET=0;
     localparam SS_RTS=1; // ready to send
     localparam SS_SENDING=2;
+
+    assign dbg_states = {main_state[3:0], sender_state[3:0]};
 
      wire [31:0] o_crc_reg;
     wire [7:0] o_crc;
@@ -151,7 +155,7 @@ module mii_phy_encoder(
                 enet_tx_data <= the_buffer[sender_idx][7:4];
                 sender_idx <= sender_idx + 1;
                 high_nibble <= 0;
-                if (sender_idx + 1 == buffer_len) begin
+                if (sender_idx + 1 >= buffer_len) begin
                     sender_state <= SS_RESET;
                     enet_tx_en <= 0;
                 end

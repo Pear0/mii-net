@@ -65,13 +65,18 @@ module mii_net_top(
     reg [31:0] nibble_count;
     reg [31:0] buffer_len;
     reg last_rx_dv;
+    reg was_writing;
+
+    wire clear_new_packet;
+
+    reg has_new_packet;
 
     wire [31:0] my_nibble = last_rx_dv ? nibble_count:0;
-    
+
     // `define REV4(x) x
 
     always @(posedge enet_rx_clk) begin
-        if (enet_rx_dv && i_switches[17]) begin
+        if (enet_rx_dv && i_switches[17] && !has_new_packet) begin
             begin
                 if (my_nibble%2 == 0)
                     stored_nibble <= enet_rx_data; // {enet_rx_data, neg_nibble};
@@ -87,35 +92,38 @@ module mii_net_top(
                         frame_recv[my_nibble[31:3]] [0] <= {enet_rx_data, stored_nibble};
                 end
                 nibble_count <= my_nibble+1;
-                buffer_len <= (my_nibble + 1) >> 1;
+                buffer_len <= (my_nibble+1) >> 1;
             end
         end
 
+        was_writing <= enet_rx_dv && i_switches[17] && !has_new_packet;
         last_rx_dv <= enet_rx_dv;
+
+        has_new_packet <= clear_new_packet ? 0:(has_new_packet || (was_writing && !enet_rx_dv));
+
     end
+    `define INSPECT 1
 
-// `define INSPECT 1
-
-`ifdef INSPECT
+    `ifdef INSPECT
     always @(posedge i_sys_clk) begin
-        seg_display <= frame_recv[i_switches[7:0]];
+        seg_display <= i_switches[16] ? recv_word : pending_frame[i_switches[7:0]];
     end
-`else
-    assign seg_display = buffer_len;
-`endif
+    `else
+    assign seg_display = {dbg_states, p_state, eth_type}; // buffer_len[15:0]
+    `endif
 
     reg [20:0] current_md;
     reg [4:0] md_index;
 
-    localparam md_count=4;
+    localparam md_count=0;
     always @(*) case (md_index)
-        0: current_md = {5'd25, 16'b111111111111};
-
-        1: current_md = { 5'd0, 16'b1010000100000000}; // force 100 full duplex mode
-        2: current_md = { 5'd0, 16'b1010000100000000};
-        // 2: current_md = { 5'd0, 16'b1000000000000000}; // PHY reset
-
-        3: current_md = {5'd25, 16'b000000000000};
+//        0: current_md = {5'd25, 16'b111111111111};
+//
+//        1: current_md = { 5'd0, 16'b1010000100000000}; // force 100 full duplex mode
+//        2: current_md = { 5'd0, 16'b1010000100000000};
+//        // 2: current_md = { 5'd0, 16'b1000000000000000}; // PHY reset
+//
+//        3: current_md = {5'd25, 16'b000000000000};
         default: current_md = 0;
     endcase
 
@@ -160,10 +168,155 @@ module mii_net_top(
         end
     end
 
+    reg [3:0] [7:0] pending_frame [256];
+    reg [10:0] pending_len;
+    reg ready_to_send;
+
+
+
+    reg [7:0] p_state;
+    localparam P_IDLE=0;
+    localparam P_READ_TYPE=1;
+    localparam P_DISPATCH_ETH=2;
+
+    localparam P_ARP=3;
+
+
+
+    localparam P_FINISH=100;
+
+
+    reg [15:0] eth_type;
+
+
+    reg [10:0] recv_addr;
+    wire [31:0] recv_word = frame_recv[recv_addr];
+
+    assign clear_new_packet = p_state == P_FINISH;
+
+
+    localparam arp_micro_len=20;
+
+    always @(*) case (arp_state)
+        0: arp_op = {1'b0, 7'd0, 1'b1, 7'd0};
+        1: arp_op = {1'b0, 7'd1, 1'b1, 7'd1};
+        2: arp_op = {1'b0, 7'd2, 1'b1, 7'd2};
+        3: arp_op = {1'b0, 7'd3, 1'b1, 7'd3};
+        4: arp_op = {1'b0, 7'd4, 1'b1, 7'd4};
+        5: arp_op = {1'b0, 7'd5, 1'b1, 7'd5};
+        6: arp_op = {1'b0, 7'd6, 1'b1, 7'd6};
+        7: arp_op = {1'b0, 7'd7, 1'b1, 7'd7};
+
+        8: arp_op = {1'b1, 7'd8, 8'hff};
+        9: arp_op = {1'b1, 7'd9, 8'hff};
+        10: arp_op = {1'b1, 7'd10, 8'hff};
+        11: arp_op = {1'b1, 7'd11, 8'hff};
+        12: arp_op = {1'b1, 7'd12, 8'hff};
+        13: arp_op = {1'b1, 7'd13, 8'hff};
+
+        14: arp_op = {1'b0, 7'd14, 1'b1, 7'd8};
+        15: arp_op = {1'b0, 7'd15, 1'b1, 7'd9};
+        16: arp_op = {1'b0, 7'd16, 1'b1, 7'd10};
+        17: arp_op = {1'b0, 7'd17, 1'b1, 7'd11};
+        18: arp_op = {1'b0, 7'd18, 1'b1, 7'd12};
+        19: arp_op = {1'b0, 7'd19, 1'b1, 7'd13};
+        default : arp_op = 0;
+    endcase
+
+
+    reg [7:0] arp_state;
+
+    reg [1:0] arp_write;
+
+    reg [15:0] arp_op; // = arp_micro[arp_state];
+    wire arp_op_byte = arp_op[15];
+
+    reg [7:0] to_write_byte;
+
+    always @(posedge i_sys_clk) begin
+        if (~i_nreset) begin
+            p_state <= P_IDLE;
+            pending_len <= 0;
+        end
+        else begin
+            if (p_state == P_IDLE) begin
+                if (has_new_packet) begin
+
+                    p_state <= P_READ_TYPE;
+                    recv_addr <= 5;
+
+                end
+                else begin
+                    recv_addr <= i_switches[7:0];
+                end
+            end
+            else if (p_state == P_READ_TYPE) begin
+                eth_type <= recv_word[31:16];
+
+                p_state <= P_DISPATCH_ETH;
+            end
+            else if (p_state == P_DISPATCH_ETH) begin
+
+                if (eth_type == 16'h0806) begin
+                    p_state <= P_ARP;
+                    arp_write <= 0;
+                    arp_state <= 0;
+                end
+                else begin
+                    p_state <= P_FINISH;
+                end
+            end
+            else if (p_state == P_ARP) begin
+
+                if (arp_write >= 2) begin
+
+                    pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= to_write_byte;
+
+//                    if (arp_op_byte)
+//                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= arp_op[7:0];
+//                    else
+//                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= recv_word[3 - arp_op[1:0]];
+
+                    if (arp_state+1 == arp_micro_len) begin
+                        p_state <= P_FINISH;
+                        ready_to_send <= 1;
+                        pending_len <= 42;
+                    end
+                    else begin
+                        arp_state <= arp_state+1;
+                        arp_write <= 0;
+                    end
+                end
+                else if (arp_write == 1) begin
+
+                    if (arp_op_byte)
+                        to_write_byte <= arp_op[7:0];
+                    else
+                        to_write_byte <= recv_word[3 - arp_op[1:0]];
+
+                    arp_write <= 2;
+                end
+                else begin
+
+                    recv_addr <= arp_op[6:2];
+
+                    arp_write <= 1;
+                end
+
+            end
+            else if (p_state == P_FINISH) begin
+                // triggers clear_new_packet
+                p_state <= P_IDLE;
+                ready_to_send <= 0;
+            end
+        end
+    end
+
 
     reg tx_en;
     reg [7:0] tx_data;
     wire tx_ready;
+    wire [7:0] dbg_states;
 
     mii_phy_encoder enc(
         .i_clk(i_sys_clk),
@@ -174,7 +327,8 @@ module mii_net_top(
 
         .tx_en,
         .tx_data,
-        .tx_ready
+        .tx_ready,
+        .dbg_states
     );
 
     reg is_sending;
@@ -183,7 +337,10 @@ module mii_net_top(
     assign o_ledg[0] = i_nsend;
     assign o_ledg[1] = is_sending;
     assign o_ledg[2] = tx_ready;
-    assign o_ledg[7:3] = send_idx[4:0];
+    assign o_ledg[3] = has_new_packet;
+    assign o_ledg[7:4] = send_idx[3:0];
+
+    reg last_nsend;
 
     always @(posedge i_sys_clk) begin
         if (~i_nreset) begin
@@ -193,25 +350,27 @@ module mii_net_top(
             send_idx <= 0;
         end
         else begin
-            if (!is_sending && ~i_nsend && tx_ready) begin
+            last_nsend <= ready_to_send;
+
+            if (!is_sending && ready_to_send && !last_nsend && tx_ready) begin
                 is_sending <= 1;
                 send_idx <= 0;
             end
             if (is_sending) begin // next cycle
 
-                if (send_idx >= buffer_len - 4) begin
+                if (send_idx >= pending_len) begin
                     is_sending <= 0;
                     tx_en <= 0;
                 end
                 else begin
-`ifndef INSPECT
-                    tx_data <= frame_recv[send_idx[15:2]][3-send_idx[1:0]];
-`else
+                    `ifndef INSPECT
+                    tx_data <= pending_frame[send_idx[15:2]][3-send_idx[1:0]];
+                    `else
                     tx_data <= 0;
-`endif
+                    `endif
                     tx_en <= 1;
 
-                    send_idx <= send_idx + 1;
+                    send_idx <= send_idx+1;
                 end
             end
         end
