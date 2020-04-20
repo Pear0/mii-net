@@ -103,7 +103,7 @@ module mii_net_top(
         has_new_packet <= clear_new_packet ? 0:(has_new_packet || (was_writing && !enet_rx_dv));
 
     end
-    `define INSPECT 1
+    // `define INSPECT 1
 
     `ifdef INSPECT
     always @(posedge i_sys_clk) begin
@@ -196,7 +196,7 @@ module mii_net_top(
     assign clear_new_packet = p_state == P_FINISH;
 
 
-    localparam arp_micro_len=20;
+    localparam arp_micro_len=50;
 
     always @(*) case (arp_state)
         0: arp_op = {1'b0, 7'd0, 1'b1, 7'd0};
@@ -215,12 +215,69 @@ module mii_net_top(
         12: arp_op = {1'b1, 7'd12, 8'hff};
         13: arp_op = {1'b1, 7'd13, 8'hff};
 
-        14: arp_op = {1'b0, 7'd14, 1'b1, 7'd8};
-        15: arp_op = {1'b0, 7'd15, 1'b1, 7'd9};
-        16: arp_op = {1'b0, 7'd16, 1'b1, 7'd10};
-        17: arp_op = {1'b0, 7'd17, 1'b1, 7'd11};
-        18: arp_op = {1'b0, 7'd18, 1'b1, 7'd12};
-        19: arp_op = {1'b0, 7'd19, 1'b1, 7'd13};
+        14: arp_op = {1'b1, 7'd14, 8'h12};
+        15: arp_op = {1'b1, 7'd15, 8'h34};
+        16: arp_op = {1'b1, 7'd16, 8'h56};
+        17: arp_op = {1'b1, 7'd17, 8'h78};
+        18: arp_op = {1'b1, 7'd18, 8'h9a};
+        19: arp_op = {1'b1, 7'd19, 8'hbc};
+
+        // ETH type
+        20: arp_op = {1'b1, 7'd20, 8'h08};
+        21: arp_op = {1'b1, 7'd21, 8'h06};
+
+        // Hardware type (ethernet)
+        22: arp_op = {1'b1, 7'd22, 8'h00};
+        23: arp_op = {1'b1, 7'd23, 8'h01};
+
+        // protocol type (ipv4)
+        24: arp_op = {1'b1, 7'd24, 8'h08};
+        25: arp_op = {1'b1, 7'd25, 8'h00};
+
+        // hw size, protocol size
+        26: arp_op = {1'b1, 7'd26, 8'h06};
+        27: arp_op = {1'b1, 7'd27, 8'h04};
+
+        // op code
+        28: arp_op = {1'b1, 7'd28, 8'h00};
+        29: arp_op = {1'b1, 7'd29, 8'h02};
+
+        // sender MAC
+        30: arp_op = {1'b1, 7'd30, 8'h12};
+        31: arp_op = {1'b1, 7'd31, 8'h34};
+        32: arp_op = {1'b1, 7'd32, 8'h56};
+        33: arp_op = {1'b1, 7'd33, 8'h78};
+        34: arp_op = {1'b1, 7'd34, 8'h9a};
+        35: arp_op = {1'b1, 7'd35, 8'hbc};
+
+        // sender IP
+        36: arp_op = {1'b1, 7'd36, 8'd10};
+        37: arp_op = {1'b1, 7'd37, 8'd69};
+        38: arp_op = {1'b1, 7'd38, 8'd69};
+        39: arp_op = {1'b1, 7'd39, 8'd42};
+
+        // target MAC
+        40: arp_op = {1'b0, 7'd40, 1'b1, 7'd30};
+        41: arp_op = {1'b0, 7'd41, 1'b1, 7'd31};
+        42: arp_op = {1'b0, 7'd42, 1'b1, 7'd32};
+        43: arp_op = {1'b0, 7'd43, 1'b1, 7'd33};
+        44: arp_op = {1'b0, 7'd44, 1'b1, 7'd34};
+        45: arp_op = {1'b0, 7'd45, 1'b1, 7'd35};
+
+        // target MAC
+        46: arp_op = {1'b0, 7'd46, 1'b1, 7'd36};
+        47: arp_op = {1'b0, 7'd47, 1'b1, 7'd37};
+        48: arp_op = {1'b0, 7'd48, 1'b1, 7'd38};
+        49: arp_op = {1'b0, 7'd49, 1'b1, 7'd39};
+
+
+
+//        14: arp_op = {1'b0, 7'd14, 1'b1, 7'd8};
+//        15: arp_op = {1'b0, 7'd15, 1'b1, 7'd9};
+//        16: arp_op = {1'b0, 7'd16, 1'b1, 7'd10};
+//        17: arp_op = {1'b0, 7'd17, 1'b1, 7'd11};
+//        18: arp_op = {1'b0, 7'd18, 1'b1, 7'd12};
+//        19: arp_op = {1'b0, 7'd19, 1'b1, 7'd13};
         default : arp_op = 0;
     endcase
 
@@ -232,9 +289,11 @@ module mii_net_top(
     reg [15:0] arp_op; // = arp_micro[arp_state];
     wire arp_op_byte = arp_op[15];
 
-    reg [7:0] to_write_byte;
+    reg [3:0] [7:0]  to_write_byte;
 
     reg [31:0] recv_word2;
+
+    reg [7:0] finish_counter;
 
     always @(posedge i_sys_clk) begin
         recv_word2 <= recv_word;
@@ -274,12 +333,12 @@ module mii_net_top(
 
                 if (arp_write >= 2) begin
 
-                    pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= to_write_byte;
+//                    pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= to_write_byte;
 
-//                    if (arp_op_byte)
-//                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= arp_op[7:0];
-//                    else
-//                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= recv_word[3 - arp_op[1:0]];
+                    if (arp_op_byte)
+                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= arp_op[7:0];
+                    else
+                        pending_frame[arp_op[14:10]] [3-arp_op[9:8]] <= to_write_byte[3 - arp_op[1:0]];
 
                     if (arp_state+1 == arp_micro_len) begin
                         p_state <= P_FINISH;
@@ -293,10 +352,8 @@ module mii_net_top(
                 end
                 else if (arp_write == 1) begin
 
-                    if (arp_op_byte)
-                        to_write_byte <= arp_op[7:0];
-                    else
-                        to_write_byte <= recv_word[3 - arp_op[1:0]];
+                    if (!arp_op_byte)
+                        to_write_byte <= recv_word;
 
                     arp_write <= 2;
                 end
@@ -309,9 +366,11 @@ module mii_net_top(
 
             end
             else if (p_state == P_FINISH) begin
-                // triggers clear_new_packet
-                p_state <= P_IDLE;
                 ready_to_send <= 0;
+                if (!has_new_packet) begin
+                    // triggers clear_new_packet
+                    p_state <= P_IDLE;
+                end
             end
         end
     end
